@@ -5,6 +5,11 @@ API de evolução temporal da taxa de conversão por canal sobre **9.525.993 env
 Desafio Tech Lead — Ilumeo Data Science. Enunciado original em
 [`docs/CHALLENGE.md`](docs/CHALLENGE.md).
 
+**No ar:** https://conversion-pulse.brandaodeveloper.com.br
+· [Swagger](https://conversion-pulse.brandaodeveloper.com.br/docs)
+· [série mensal](https://conversion-pulse.brandaodeveloper.com.br/api/v1/conversion/timeseries?granularity=month)
+· [health](https://conversion-pulse.brandaodeveloper.com.br/health)
+
 ## O resultado em uma tabela
 
 | consulta | agregando o fato (9,5M linhas) | servindo do rollup | ganho |
@@ -45,7 +50,7 @@ GET /api/v1/conversion/timeseries
 | `conversionStatuses` | ids de 1 a 6, separados por vírgula | `1` (Válido) |
 
 ```bash
-curl 'http://localhost:3000/api/v1/conversion/timeseries?granularity=month&channels=email,mobile'
+curl 'https://conversion-pulse.brandaodeveloper.com.br/api/v1/conversion/timeseries?granularity=month&channels=email,mobile'
 ```
 
 ```json
