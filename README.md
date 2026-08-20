@@ -51,6 +51,8 @@ GET /api/v1/conversion/timeseries
 | `granularity` | `day` `week` `month` | `day` |
 | `channels` | `email` `mobile` `wpp`, separados por vírgula | todos |
 | `conversionStatuses` | ids de 1 a 6, separados por vírgula | `1` (Válido) |
+| `pageSize` | 1 a 1000; omitido devolve a série inteira | — |
+| `page` | página 1-based da série (só com `pageSize`) | `1` |
 
 ```bash
 curl 'https://conversion-pulse.brandaodeveloper.com.br/api/v1/conversion/timeseries?granularity=month&channels=email,mobile'

@@ -1,4 +1,7 @@
-import { GetConversionTimeseriesUseCase } from './get-conversion-timeseries.use-case';
+import {
+  GetConversionTimeseriesUseCase,
+  type TimeseriesView,
+} from './get-conversion-timeseries.use-case';
 import type { SeriesCachePort } from '../../domain/port/series-cache.port';
 
 const BOUNDS = { from: '2025-01-01', to: '2025-01-31' };
@@ -99,5 +102,104 @@ describe('GetConversionTimeseriesUseCase', () => {
     expect(repository.findTimeseries).toHaveBeenCalledWith(
       expect.objectContaining({ range: BOUNDS }),
     );
+  });
+});
+
+function countsOf(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    period: `2025-01-${String(i + 1).padStart(2, '0')}`,
+    channel: 'email',
+    sent: 100,
+    converted: 10,
+    delivered: 90,
+    opened: 20,
+    viewed: 5,
+  }));
+}
+
+describe('GetConversionTimeseriesUseCase pagination', () => {
+  it('returns the full series and no pagination when pageSize is absent', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: countsOf(5),
+      queryMs: 2,
+    });
+    const view = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+    });
+
+    expect(view.series).toHaveLength(5);
+    expect(view.pagination).toBeUndefined();
+  });
+
+  it('slices to the requested page and reports pagination meta', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: countsOf(5),
+      queryMs: 2,
+    });
+    const view = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+      page: 2,
+      pageSize: 2,
+    });
+
+    expect(view.series).toHaveLength(2);
+    expect(view.series[0].period).toBe('2025-01-03');
+    expect(view.pagination).toEqual({
+      page: 2,
+      pageSize: 2,
+      totalItems: 5,
+      totalPages: 3,
+    });
+  });
+
+  it('keeps totals computed over the full series, not the page', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: countsOf(5),
+      queryMs: 2,
+    });
+    const view = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+      pageSize: 2,
+    });
+
+    expect(view.totals.sent).toBe(500);
+    expect(view.series).toHaveLength(2);
+  });
+
+  it('clamps an out-of-range page to the last page', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: countsOf(5),
+      queryMs: 2,
+    });
+    const view = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+      page: 99,
+      pageSize: 2,
+    });
+
+    expect(view.pagination?.page).toBe(3);
+    expect(view.series).toHaveLength(1);
+    expect(view.series[0].period).toBe('2025-01-05');
+  });
+
+  it('caches the full series so pagination never multiplies cache keys', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: countsOf(5),
+      queryMs: 2,
+    });
+    const cache = buildCache();
+    await buildUseCase(repository, cache).execute({
+      granularity: 'day',
+      pageSize: 2,
+    });
+
+    const cached = (cache.set.mock.calls[0] as unknown[])[1] as TimeseriesView;
+    expect(cached.series).toHaveLength(5);
+    expect(cached.pagination).toBeUndefined();
   });
 });

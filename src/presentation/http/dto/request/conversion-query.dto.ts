@@ -30,6 +30,9 @@ const toIntList = ({ value }: { value: unknown }): unknown => {
   return Array.isArray(list) ? list.map((v) => Number(v)) : list;
 };
 
+const toInt = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+
 export class ConversionQueryDto {
   @ApiPropertyOptional({
     example: '2025-01-01',
@@ -80,4 +83,29 @@ export class ConversionQueryDto {
   @Min(1, { each: true })
   @Max(6, { each: true })
   conversionStatuses: number[] = [1];
+
+  @ApiPropertyOptional({
+    example: 1,
+    minimum: 1,
+    description: 'Página da série (1-based). Só tem efeito com pageSize.',
+  })
+  @IsOptional()
+  @Transform(toInt)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({
+    example: 100,
+    minimum: 1,
+    maximum: 1000,
+    description:
+      'Tamanho da página da série. Omitido devolve a série inteira — o gráfico precisa de todos os pontos.',
+  })
+  @IsOptional()
+  @Transform(toInt)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  pageSize?: number;
 }

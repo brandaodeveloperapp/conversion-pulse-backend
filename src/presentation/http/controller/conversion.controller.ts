@@ -35,6 +35,8 @@ export class ConversionController {
       granularity: query.granularity,
       channels: query.channels,
       conversionStatuses: query.conversionStatuses,
+      page: query.page,
+      pageSize: query.pageSize,
     });
 
     void reply.header('X-Cache', view.cached ? 'HIT' : 'MISS');
@@ -49,6 +51,7 @@ export class ConversionController {
         queryMs: view.queryMs,
         cached: view.cached,
         source: 'conversion_daily',
+        ...(view.pagination ? { pagination: view.pagination } : {}),
       },
       totals: view.totals,
       series: [...view.series],

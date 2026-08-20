@@ -25,6 +25,15 @@ export interface TimeseriesQuery {
   readonly granularity: Granularity;
   readonly channels?: readonly string[];
   readonly conversionStatuses?: readonly number[];
+  readonly page?: number;
+  readonly pageSize?: number;
+}
+
+export interface PaginationMeta {
+  readonly page: number;
+  readonly pageSize: number;
+  readonly totalItems: number;
+  readonly totalPages: number;
 }
 
 export interface TimeseriesView {
@@ -36,6 +45,7 @@ export interface TimeseriesView {
   readonly cached: boolean;
   readonly totals: ConversionTotals;
   readonly series: readonly ConversionPoint[];
+  readonly pagination?: PaginationMeta;
 }
 
 type CachedView = Omit<TimeseriesView, 'cached'>;
@@ -64,13 +74,13 @@ export class GetConversionTimeseriesUseCase {
     const key = seriesCacheKey(criteria);
     const hit = await this.cache.get<CachedView>(key);
     if (hit) {
-      return { ...hit, cached: true };
+      return this.present(hit, true, query);
     }
 
     const { counts, queryMs } = await this.repository.findTimeseries(criteria);
     const series = counts.map(toConversionPoint);
 
-    const view: CachedView = {
+    const full: CachedView = {
       range: criteria.range,
       granularity: criteria.granularity,
       channels: criteria.channels ?? [
@@ -82,8 +92,29 @@ export class GetConversionTimeseriesUseCase {
       series,
     };
 
-    await this.cache.set(key, view);
-    return { ...view, cached: false };
+    await this.cache.set(key, full);
+    return this.present(full, false, query);
+  }
+
+  private present(
+    full: CachedView,
+    cached: boolean,
+    query: TimeseriesQuery,
+  ): TimeseriesView {
+    if (query.pageSize === undefined) {
+      return { ...full, cached };
+    }
+    const pageSize = query.pageSize;
+    const totalItems = full.series.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const page = Math.min(Math.max(query.page ?? 1, 1), totalPages);
+    const start = (page - 1) * pageSize;
+    return {
+      ...full,
+      cached,
+      series: full.series.slice(start, start + pageSize),
+      pagination: { page, pageSize, totalItems, totalPages },
+    };
   }
 
   async invalidateAll(): Promise<void> {

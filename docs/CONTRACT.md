@@ -60,7 +60,7 @@ indistinguíveis no Loki.
 | `GET /health` | não | liveness. 200 ok, 503 degradado |
 | `GET /health/ready` | não | readiness: db, redis e rabbitmq |
 | `GET /metrics` | não | exposição Prometheus, `text/plain` |
-| `GET /api/v1/conversion/timeseries` | v1 | série temporal |
+| `GET /api/v1/conversion/timeseries` | v1 | série temporal; aceita `page`/`pageSize` (série completa sem `pageSize`) |
 | `GET /api/v1/conversion/channels` | v1 | canais disponíveis |
 | `GET /docs` | não | Swagger UI |
 

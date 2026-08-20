@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { Granularity } from '../../../../domain/model/granularity';
 
 export class ChannelVolumeDto {
@@ -52,6 +52,21 @@ export class ConversionTotalsDto {
   @ApiProperty({ type: Number, nullable: true }) conversionRate!: number | null;
 }
 
+export class PaginationDto {
+  @ApiProperty({ example: 1, description: 'Página atual (1-based).' })
+  page!: number;
+
+  @ApiProperty({ example: 100 }) pageSize!: number;
+
+  @ApiProperty({
+    example: 1362,
+    description: 'Total de pontos na série completa.',
+  })
+  totalItems!: number;
+
+  @ApiProperty({ example: 14 }) totalPages!: number;
+}
+
 export class ConversionMetaDto {
   @ApiProperty({ example: '2025-01-01' }) from!: string;
   @ApiProperty({ example: '2025-12-31' }) to!: string;
@@ -73,6 +88,12 @@ export class ConversionMetaDto {
     description: 'Origem dos dados servidos.',
   })
   source!: string;
+
+  @ApiPropertyOptional({
+    type: PaginationDto,
+    description: 'Presente apenas quando pageSize é informado.',
+  })
+  pagination?: PaginationDto;
 }
 
 export class ConversionResponseDto {
