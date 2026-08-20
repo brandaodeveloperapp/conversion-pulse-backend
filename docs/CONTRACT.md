@@ -9,7 +9,7 @@ outros.
 | serviço | host interno | porta | exposto no host (dev) |
 | --- | --- | ---: | --- |
 | api | `api` | 3000 | `3000` |
-| worker | `worker` | — | não expõe |
+| worker | `worker` | 9101 | não expõe (só `/metrics`) |
 | db | `db` | 5432 | `5432` |
 | redis | `redis` | 6379 | não expõe |
 | rabbitmq | `rabbitmq` | 5672 / 15672 | `15672` (painel) |
@@ -35,6 +35,8 @@ CACHE_TTL_SECONDS=60
 RATE_LIMIT_TTL_SECONDS=60
 RATE_LIMIT_MAX=120
 
+WORKER_METRICS_PORT=9101
+
 RABBITMQ_URL=amqp://cpulse:cpulse@rabbitmq:5672
 ROLLUP_EXCHANGE=cpulse.rollup
 ROLLUP_QUEUE=cpulse.rollup.refresh
@@ -45,6 +47,10 @@ LOG_LEVEL=info
 METRICS_ENABLED=true
 OTEL_SERVICE_NAME=conversion-pulse-api
 ```
+
+O worker sobrescreve `OTEL_SERVICE_NAME=conversion-pulse-worker`. Sem isso os
+dois processos escrevem logs sob o mesmo nome de serviço e ficam
+indistinguíveis no Loki.
 
 ## Endpoints HTTP
 
@@ -73,6 +79,20 @@ Prefixo `cpulse_`. Labels sempre em snake_case.
 | `cpulse_events_total` | gauge | `channel` |
 
 Métricas default do `prom-client` (processo, heap, event loop) ficam ligadas.
+
+As métricas vivem no processo que as produz: `cpulse_rollup_refresh_*` só
+existe no worker, porque é ele quem refresca. Por isso o worker expõe
+`/metrics` em `9101` e o Prometheus raspa os dois alvos — sem isso o refresh do
+rollup seria invisível.
+
+| métrica | onde é populada |
+| --- | --- |
+| `cpulse_http_*` | api |
+| `cpulse_db_query_duration_seconds` | api (adapter do repositório) |
+| `cpulse_cache_operations_total` | api |
+| `cpulse_events_total` | api (ao listar canais) |
+| `cpulse_rollup_rows` | api (health) e worker (pós-refresh) |
+| `cpulse_rollup_refresh_*` | worker |
 
 ## Mensageria
 
@@ -103,8 +123,8 @@ Resposta traz o header `X-Cache: HIT` ou `MISS`.
 Uma única imagem serve API e worker; muda só o comando.
 
 ```
-api    -> node dist/main.js
-worker -> node dist/worker.js
+api    -> node dist/main.js   (HTTP 3000)
+worker -> node dist/worker.js (HTTP 9101, só /metrics)
 ```
 
 Registry: `ghcr.io/brandaodeveloperapp/conversion-pulse-backend`.

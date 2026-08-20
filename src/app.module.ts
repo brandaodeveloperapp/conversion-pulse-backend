@@ -26,7 +26,7 @@ import { ReadinessModule } from './presentation/http/controller/ready/readiness.
     CacheModule.forRoot(),
     MetricsModule.forRoot(),
     MessagingModule.forRoot(),
-    ApplicationModule,
+    ApplicationModule.forRoot(),
     HttpModule,
     ReadinessModule,
   ],

@@ -8,12 +8,16 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
+import { MetricsService } from '../../../infrastructure/observability/metrics/metrics.service';
 import { PostgresConnection } from '../../../infrastructure/persistence/postgres/postgres-connection.service';
 
 @ApiTags('health')
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
-  constructor(private readonly db: PostgresConnection) {}
+  constructor(
+    private readonly db: PostgresConnection,
+    private readonly metrics: MetricsService,
+  ) {}
 
   @Get()
   @HttpCode(HttpStatus.OK)
@@ -24,13 +28,15 @@ export class HealthController {
       const [row] = await this.db.query<{ rows: string }>(
         'SELECT count(*)::text AS rows FROM inside.conversion_daily',
       );
+      const rollupRows = Number(row?.rows ?? 0);
+      this.metrics.setRollupRows(rollupRows);
       return {
         status: 'ok',
         uptimeSeconds: Math.round(process.uptime()),
         database: {
           reachable: true,
           latencyMs: Date.now() - started,
-          rollupRows: Number(row?.rows ?? 0),
+          rollupRows,
         },
       };
     } catch (error) {

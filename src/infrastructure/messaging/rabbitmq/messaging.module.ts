@@ -1,6 +1,5 @@
 import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ApplicationModule } from '../../../application/application.module';
 import { ROLLUP_QUEUE } from '../../../domain/port/rollup-queue.port';
 import { RabbitConnectionService } from './rabbit-connection.service';
 import { RollupConsumerService } from './rollup-consumer.service';
@@ -20,8 +19,6 @@ export class MessagingModule {
     const enablePublisher = (options.publisher ?? true) || enableCron;
     const enableConsumer = options.consumer ?? false;
 
-    const needsApplicationModule = enableCron || enableConsumer;
-
     const providers: Provider[] = [RabbitConnectionService];
     if (enablePublisher) {
       providers.push(RollupPublisherService, {
@@ -38,10 +35,7 @@ export class MessagingModule {
     return {
       module: MessagingModule,
       global: true,
-      imports: [
-        ...(enableCron ? [ScheduleModule.forRoot()] : []),
-        ...(needsApplicationModule ? [ApplicationModule] : []),
-      ],
+      imports: enableCron ? [ScheduleModule.forRoot()] : [],
       providers,
       exports,
     };

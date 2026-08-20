@@ -14,11 +14,14 @@ Desafio Tech Lead — Ilumeo Data Science. Enunciado original em
 
 | consulta | agregando o fato (9,5M linhas) | servindo do rollup | ganho |
 | --- | ---: | ---: | ---: |
-| janela completa, todos os canais, diário | 2.095 ms | **0,40 ms** | 5.264× |
-| 30 dias, um canal | 47,8 ms | **0,05 ms** | 1.016× |
+| janela completa, todos os canais, diário | 2.251 ms | **0,21 ms** | ~10.700× |
+| 30 dias, um canal | 46,1 ms | **0,03 ms** | ~1.500× |
 
-Ponta a ponta, HTTP incluído, na stack em Docker: **4 a 32 ms** por request.
-60 requests concorrentes na rota mais pesada: **260 ms no total, 4,3 ms/req**.
+Mediana de três execuções de `EXPLAIN ANALYZE` com a stack de nove containers
+no ar. O dígito exato varia com o cache do Postgres — o que não varia é a ordem
+de grandeza. Ponta a ponta, HTTP incluído: **15 ms** no primeiro request,
+**3 ms** servido do cache. Sessenta requests concorrentes na rota mais pesada:
+**147 ms no total, 2,5 ms/req**, todos 200.
 
 Reproduza: `npm run bench`.
 
@@ -145,7 +148,7 @@ já não é o problema.
 ## Testes
 
 ```bash
-npm test          # 49 unit
+npm test          # 55 unit
 npm run test:e2e  # 5 e2e, sem infra real
 ```
 

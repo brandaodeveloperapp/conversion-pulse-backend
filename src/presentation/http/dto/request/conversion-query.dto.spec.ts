@@ -61,4 +61,25 @@ describe('ConversionQueryDto', () => {
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
   });
+
+  it('rejects an inverted date range', async () => {
+    const dto = toDto({ from: '2025-01-01', to: '2024-01-01' });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0].property).toBe('to');
+  });
+
+  it('accepts a range that starts and ends on the same day', async () => {
+    const dto = toDto({ from: '2025-01-01', to: '2025-01-01' });
+
+    expect(await validate(dto)).toHaveLength(0);
+  });
+
+  it('accepts an open-ended range', async () => {
+    const dto = toDto({ to: '2024-01-01' });
+
+    expect(await validate(dto)).toHaveLength(0);
+  });
 });

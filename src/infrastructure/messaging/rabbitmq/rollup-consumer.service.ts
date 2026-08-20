@@ -60,7 +60,8 @@ export class RollupConsumerService implements OnModuleInit {
   ): Promise<void> {
     const started = Date.now();
     try {
-      await this.refreshRollup.execute(concurrently);
+      const outcome = await this.refreshRollup.execute(concurrently);
+      this.metrics.setRollupRows(outcome.rollupRows);
       this.metrics.recordRollupRefresh(
         'success',
         (Date.now() - started) / 1000,

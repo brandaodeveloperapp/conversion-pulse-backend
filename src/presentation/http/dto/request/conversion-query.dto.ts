@@ -9,7 +9,9 @@ import {
   IsOptional,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
+import { IsNotBeforeConstraint } from './is-not-before.validator';
 
 import { CHANNELS, Channel } from '../../../../domain/model/channel';
 import { GRANULARITIES } from '../../../../domain/model/granularity';
@@ -43,6 +45,8 @@ export class ConversionQueryDto {
   })
   @IsOptional()
   @IsISO8601()
+  @ValidateIf((dto: ConversionQueryDto) => dto.from !== undefined)
+  @IsNotBeforeConstraint('from')
   to?: string;
 
   @ApiPropertyOptional({ enum: GRANULARITIES, default: 'day' })

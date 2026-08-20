@@ -23,6 +23,7 @@ x-app-env: &app-env
   ROLLUP_CRON: "${ROLLUP_CRON:-0 */15 * * * *}"
   LOG_LEVEL: ${LOG_LEVEL:-info}
   METRICS_ENABLED: "true"
+  WORKER_METRICS_PORT: 9101
   OTEL_SERVICE_NAME: conversion-pulse-api
 
 services:
@@ -163,6 +164,7 @@ services:
     command: ["node", "dist/worker.js"]
     environment:
       <<: *app-env
+      OTEL_SERVICE_NAME: conversion-pulse-worker
     networks:
       - cpulse
     depends_on:
@@ -178,6 +180,12 @@ services:
           memory: 512M
           cpus: '1.0'
     logging: *default-logging
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:9101/metrics').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   prometheus:
     image: prom/prometheus:v2.55.0

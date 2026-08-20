@@ -26,7 +26,7 @@ import { ApplicationModule } from './application/application.module';
       enableRateLimit: false,
     }),
     MetricsModule.forRoot({ httpInterceptor: false }),
-    ApplicationModule,
+    ApplicationModule.forRoot({ rollupPublishing: false }),
     MessagingModule.forRoot({ publisher: false, cron: false, consumer: true }),
   ],
 })

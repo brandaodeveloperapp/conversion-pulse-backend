@@ -11,10 +11,12 @@ tabela de fatos e torcer. Medimos antes de decidir:
 
 | consulta | tabela fato (9,5M linhas) | rollup | ganho |
 | --- | ---: | ---: | ---: |
-| janela completa, todos os canais, diário | 2.095 ms | 0,40 ms | **5.264×** |
-| 30 dias, um canal | 47,8 ms | 0,05 ms | **1.016×** |
+| janela completa, todos os canais, diário | 2.251 ms | 0,21 ms | **~10.700×** |
+| 30 dias, um canal | 46,1 ms | 0,03 ms | **~1.500×** |
 
-Reproduza com `npm run bench`.
+Mediana de três execuções, stack completa no ar. Reproduza com `npm run bench`.
+O tempo do rollup oscila entre 0,02 e 0,4 ms conforme o cache do Postgres; o da
+tabela fato fica estável em torno de 2 s, que é o número que importa.
 
 O ponto: mesmo com particionamento e índice ajudando (caso de 30 dias, 47 ms), a
 agregação direta é ordens de grandeza mais lenta. E a rota de janela completa —
