@@ -172,6 +172,8 @@ src/shared/         configuração tipada
 db/init/            schema, particionamento (roda no boot do container)
 db/post-load/       indices e rollup (aplicados depois do COPY, de propósito)
 scripts/            transform do dump, carga, benchmark
+deploy/nginx/       vhost de produção, igual ao que roda no host
+observability/      Prometheus, Loki, Promtail e dashboard (stack local)
 infra/k8s/          base autocontida + overlay de produção (kustomize)
 docs/               arquitetura e enunciado original
 ```

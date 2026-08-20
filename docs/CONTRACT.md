@@ -18,8 +18,9 @@ outros.
 | loki | `loki` | 3100 | não expõe |
 | promtail | `promtail` | — | não expõe |
 
-Em produção nada além do nginx escuta em interface pública. A porta local da API
-é `3042`.
+Em produção nada além do nginx escuta em interface pública. A API roda em k3s e
+o nginx alcança o NodePort `30983` pelo próprio host; `/metrics` é bloqueado na
+borda.
 
 ## Variáveis de ambiente
 
