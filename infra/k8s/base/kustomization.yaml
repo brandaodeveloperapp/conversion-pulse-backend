@@ -21,6 +21,7 @@ resources:
   - api-deployment.yaml
   - api-service.yaml
   - worker-deployment.yaml
+  - worker-service.yaml
   - hpa.yaml
   - pdb.yaml
   - network-policy.yaml

@@ -33,9 +33,12 @@ echo "==> Saving + compressing image"
 docker save "${IMAGE}:${SHA}" | gzip > "${TAR}"
 
 echo "==> Uploading image + manifests to ${VPS}"
-ssh "${VPS}" "mkdir -p ${REMOTE_DIR}/images ${REMOTE_DIR}/infra/k8s"
+ssh "${VPS}" "mkdir -p ${REMOTE_DIR}/images ${REMOTE_DIR}/infra/k8s ${REMOTE_DIR}/db"
 scp -q "${TAR}" "${VPS}:${REMOTE_DIR}/images/conversion-pulse-api.tar.gz"
 rsync -az --delete infra/k8s/ "${VPS}:${REMOTE_DIR}/infra/k8s/"
+# The repo is private and the server holds no git credential, so the schema and
+# post-load scripts travel over the same channel as the manifests.
+rsync -az --delete db/ "${VPS}:${REMOTE_DIR}/db/"
 rm -f "${TAR}"
 
 echo "==> Deploying on k3s"

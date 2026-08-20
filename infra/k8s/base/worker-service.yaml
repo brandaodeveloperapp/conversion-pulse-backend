@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cpulse-worker
+  namespace: conversion-pulse
+  labels:
+    app: cpulse-worker
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: cpulse-worker
+  ports:
+    - name: metrics
+      port: 9101
+      targetPort: 9101

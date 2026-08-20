@@ -85,6 +85,12 @@ existe no worker, porque é ele quem refresca. Por isso o worker expõe
 `/metrics` em `9101` e o Prometheus raspa os dois alvos — sem isso o refresh do
 rollup seria invisível.
 
+**Gauges globais não se somam entre réplicas.** `cpulse_events_total` e
+`cpulse_rollup_rows` descrevem o banco, não o processo: com três réplicas da
+API, `sum by (channel) (cpulse_events_total)` devolve o triplo do valor real.
+Use `max by (channel) (...)`. Os counters (`cpulse_http_*`,
+`cpulse_cache_operations_total`) são por processo e aí `sum` é o correto.
+
 | métrica | onde é populada |
 | --- | --- |
 | `cpulse_http_*` | api |
