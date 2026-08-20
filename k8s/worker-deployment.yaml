@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cpulse-api
+  name: cpulse-worker
   namespace: conversion-pulse
   labels:
-    app: cpulse-api
+    app: cpulse-worker
 spec:
-  replicas: 3
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -14,15 +14,11 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: cpulse-api
+      app: cpulse-worker
   template:
     metadata:
       labels:
-        app: cpulse-api
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "3000"
-        prometheus.io/path: /metrics
+        app: cpulse-worker
     spec:
       securityContext:
         runAsNonRoot: true
@@ -30,12 +26,12 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
       containers:
-        - name: api
+        - name: worker
           image: cpulse-api:latest
           imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 3000
-              name: http
+          command:
+            - node
+            - dist/worker.js
           envFrom:
             - configMapRef:
                 name: cpulse-api-config
@@ -50,34 +46,30 @@ spec:
                 secretKeyRef:
                   name: cpulse-rabbitmq-secret
                   key: RABBITMQ_URL
+            - name: OTEL_SERVICE_NAME
+              value: conversion-pulse-worker
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
           livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            exec:
+              command:
+                - sh
+                - -c
+                - pgrep -f dist/worker.js
+            initialDelaySeconds: 15
+            periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
           resources:
             requests:
-              cpu: 250m
+              cpu: 200m
               memory: 256Mi
             limits:
-              cpu: "1"
+              cpu: 500m
               memory: 512Mi
           volumeMounts:
             - name: tmp

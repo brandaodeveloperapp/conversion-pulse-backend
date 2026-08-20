@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cpulse-api
+  namespace: conversion-pulse
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: cpulse-api

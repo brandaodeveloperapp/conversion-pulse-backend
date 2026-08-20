@@ -1,0 +1,73 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cpulse-db-restrict
+  namespace: conversion-pulse
+spec:
+  podSelector:
+    matchLabels:
+      app: cpulse-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - cpulse-api
+                  - cpulse-worker
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cpulse-redis-restrict
+  namespace: conversion-pulse
+spec:
+  podSelector:
+    matchLabels:
+      app: cpulse-redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - cpulse-api
+                  - cpulse-worker
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cpulse-rabbitmq-restrict
+  namespace: conversion-pulse
+spec:
+  podSelector:
+    matchLabels:
+      app: cpulse-rabbitmq
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - cpulse-api
+                  - cpulse-worker
+      ports:
+        - protocol: TCP
+          port: 5672
+        - protocol: TCP
+          port: 15672

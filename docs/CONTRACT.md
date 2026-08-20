@@ -1,0 +1,111 @@
+# Contrato de integração
+
+Interfaces fixas entre os componentes. Compose, Kubernetes, CI e código da
+aplicação são escritos contra este documento — quem mudar algo aqui quebra os
+outros.
+
+## Serviços e portas
+
+| serviço | host interno | porta | exposto no host (dev) |
+| --- | --- | ---: | --- |
+| api | `api` | 3000 | `3000` |
+| worker | `worker` | — | não expõe |
+| db | `db` | 5432 | `5432` |
+| redis | `redis` | 6379 | não expõe |
+| rabbitmq | `rabbitmq` | 5672 / 15672 | `15672` (painel) |
+| prometheus | `prometheus` | 9090 | `9090` |
+| grafana | `grafana` | 3000 | `3001` |
+| loki | `loki` | 3100 | não expõe |
+| promtail | `promtail` | — | não expõe |
+
+Em produção nada além do nginx escuta em interface pública. A porta local da API
+é `3042`.
+
+## Variáveis de ambiente
+
+```
+NODE_ENV=production
+PORT=3000
+DATABASE_URL=postgres://USER:PASS@db:5432/DB
+DB_POOL_MAX=20
+DB_STATEMENT_TIMEOUT_MS=15000
+
+REDIS_URL=redis://redis:6379
+CACHE_TTL_SECONDS=60
+RATE_LIMIT_TTL_SECONDS=60
+RATE_LIMIT_MAX=120
+
+RABBITMQ_URL=amqp://cpulse:cpulse@rabbitmq:5672
+ROLLUP_EXCHANGE=cpulse.rollup
+ROLLUP_QUEUE=cpulse.rollup.refresh
+ROLLUP_ROUTING_KEY=rollup.refresh
+ROLLUP_CRON=0 */15 * * * *
+
+LOG_LEVEL=info
+METRICS_ENABLED=true
+OTEL_SERVICE_NAME=conversion-pulse-api
+```
+
+## Endpoints HTTP
+
+| rota | versionada | descrição |
+| --- | --- | --- |
+| `GET /health` | não | liveness. 200 ok, 503 degradado |
+| `GET /health/ready` | não | readiness: db, redis e rabbitmq |
+| `GET /metrics` | não | exposição Prometheus, `text/plain` |
+| `GET /api/v1/conversion/timeseries` | v1 | série temporal |
+| `GET /api/v1/conversion/channels` | v1 | canais disponíveis |
+| `GET /docs` | não | Swagger UI |
+
+## Métricas Prometheus
+
+Prefixo `cpulse_`. Labels sempre em snake_case.
+
+| métrica | tipo | labels |
+| --- | --- | --- |
+| `cpulse_http_request_duration_seconds` | histogram | `method`, `route`, `status_code` |
+| `cpulse_http_requests_total` | counter | `method`, `route`, `status_code` |
+| `cpulse_db_query_duration_seconds` | histogram | `operation` |
+| `cpulse_cache_operations_total` | counter | `result` (`hit`/`miss`/`error`) |
+| `cpulse_rollup_refresh_total` | counter | `result` (`success`/`failure`) |
+| `cpulse_rollup_refresh_duration_seconds` | histogram | — |
+| `cpulse_rollup_rows` | gauge | — |
+| `cpulse_events_total` | gauge | `channel` |
+
+Métricas default do `prom-client` (processo, heap, event loop) ficam ligadas.
+
+## Mensageria
+
+Exchange `cpulse.rollup`, tipo `topic`, durável. Fila
+`cpulse.rollup.refresh`, durável, ligada por `rollup.refresh`.
+
+Mensagem publicada pela API (cron) e consumida pelo worker:
+
+```json
+{ "requestedAt": "2026-08-20T03:00:00.000Z", "reason": "scheduled", "concurrently": true }
+```
+
+`reason` aceita `scheduled` ou `manual`. O worker executa
+`REFRESH MATERIALIZED VIEW CONCURRENTLY inside.conversion_daily`, emite as
+métricas de refresh e faz `ack`. Em falha, `nack` sem requeue — a próxima
+execução do cron cobre.
+
+## Cache
+
+Chave: `cpulse:ts:` + sha1 do querystring normalizado (parâmetros ordenados).
+TTL `CACHE_TTL_SECONDS`. Invalidação por prefixo `cpulse:ts:*` após cada refresh
+bem-sucedido do rollup — quem apaga é o worker.
+
+Resposta traz o header `X-Cache: HIT` ou `MISS`.
+
+## Imagem de container
+
+Uma única imagem serve API e worker; muda só o comando.
+
+```
+api    -> node dist/main.js
+worker -> node dist/worker.js
+```
+
+Registry: `ghcr.io/brandaodeveloperapp/conversion-pulse-backend`.
+Tags: `latest`, `sha-<commit>`.

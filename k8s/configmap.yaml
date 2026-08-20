@@ -8,3 +8,14 @@ data:
   DEFAULT_GRANULARITY: "day"
   DB_POOL_MAX: "10"
   DB_STATEMENT_TIMEOUT_MS: "15000"
+  REDIS_URL: redis://cpulse-redis:6379
+  CACHE_TTL_SECONDS: "60"
+  RATE_LIMIT_TTL_SECONDS: "60"
+  RATE_LIMIT_MAX: "120"
+  ROLLUP_EXCHANGE: cpulse.rollup
+  ROLLUP_QUEUE: cpulse.rollup.refresh
+  ROLLUP_ROUTING_KEY: rollup.refresh
+  ROLLUP_CRON: "0 */15 * * * *"
+  LOG_LEVEL: info
+  METRICS_ENABLED: "true"
+  OTEL_SERVICE_NAME: conversion-pulse-api

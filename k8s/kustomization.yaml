@@ -6,7 +6,15 @@ resources:
   - configmap.yaml
   - secret.example.yaml
   - postgres-statefulset.yaml
+  - redis-statefulset.yaml
+  - rabbitmq-statefulset.yaml
+  - prometheus-deployment.yaml
+  - grafana-deployment.yaml
+  - loki-deployment.yaml
   - api-deployment.yaml
   - api-service.yaml
+  - worker-deployment.yaml
   - hpa.yaml
+  - pdb.yaml
+  - network-policy.yaml
   - ingress.yaml
