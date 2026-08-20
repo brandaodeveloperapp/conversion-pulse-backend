@@ -7,15 +7,22 @@ import {
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { trustedProxies } from './shared/config/trusted-proxies';
+import { corsOrigin } from './shared/config/cors-origin';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    new FastifyAdapter({
+      trustProxy: trustedProxies(process.env.TRUSTED_PROXIES),
+    }),
   );
 
   app.useLogger(app.get(Logger));
-  app.enableCors({ origin: true });
+  app.enableCors({
+    origin: corsOrigin(process.env.CORS_ORIGINS),
+    methods: ['GET'],
+  });
   app.setGlobalPrefix('api', {
     exclude: ['health', 'health/ready', 'metrics'],
   });
