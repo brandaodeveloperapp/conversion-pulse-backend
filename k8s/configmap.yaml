@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cpulse-api-config
+  namespace: conversion-pulse
+data:
+  PORT: "3000"
+  DEFAULT_GRANULARITY: "day"
+  DB_POOL_MAX: "10"
+  DB_STATEMENT_TIMEOUT_MS: "15000"

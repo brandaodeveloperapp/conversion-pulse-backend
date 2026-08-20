@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cpulse-db
+  namespace: conversion-pulse
+spec:
+  clusterIP: None
+  selector:
+    app: cpulse-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cpulse-db
+  namespace: conversion-pulse
+spec:
+  serviceName: cpulse-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cpulse-db
+  template:
+    metadata:
+      labels:
+        app: cpulse-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cpulse-db-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cpulse-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: cpulse-db-secret
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          args:
+            - postgres
+            - -c
+            - shared_buffers=512MB
+            - -c
+            - work_mem=64MB
+            - -c
+            - maintenance_work_mem=512MB
+            - -c
+            - max_wal_size=4GB
+            - -c
+            - checkpoint_timeout=30min
+            - -c
+            - random_page_cost=1.1
+            - -c
+            - effective_cache_size=2GB
+            - -c
+            - max_parallel_workers_per_gather=4
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - $(POSTGRES_DB)
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 20
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - $(POSTGRES_DB)
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: db-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi

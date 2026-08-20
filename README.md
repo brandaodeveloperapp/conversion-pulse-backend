@@ -1,0 +1,170 @@
+# Conversion Pulse
+
+API de evolução temporal da taxa de conversão por canal sobre **9.525.993 envios**.
+
+Desafio Tech Lead — Ilumeo Data Science. Enunciado original em
+[`docs/CHALLENGE.md`](docs/CHALLENGE.md).
+
+## O resultado em uma tabela
+
+| consulta | agregando o fato (9,5M linhas) | servindo do rollup | ganho |
+| --- | ---: | ---: | ---: |
+| janela completa, todos os canais, diário | 2.095 ms | **0,40 ms** | 5.264× |
+| 30 dias, um canal | 47,8 ms | **0,05 ms** | 1.016× |
+
+Ponta a ponta, HTTP incluído, na stack em Docker: **4 a 32 ms** por request.
+60 requests concorrentes na rota mais pesada: **260 ms no total, 4,3 ms/req**.
+
+Reproduza: `npm run bench`.
+
+## Subir em um comando
+
+```bash
+docker compose up -d db      # Postgres 17 + schema
+npm run db:load              # dump -> CSV -> COPY -> indices -> rollup
+docker compose up -d --build # API
+```
+
+O dump (`case_tech_lead.sql`, 298 MB) não está versionado. Baixe do
+[Drive do enunciado](https://drive.google.com/drive/folders/1r7sn8MuBoBJRGB_DBtiJQsa9ydTKrvXx)
+e coloque em `data/`.
+
+Pronto: API em `http://localhost:3000`, Swagger em `http://localhost:3000/docs`.
+
+## A rota
+
+```
+GET /api/v1/conversion/timeseries
+```
+
+| parâmetro | valores | padrão |
+| --- | --- | --- |
+| `from` / `to` | data ISO | intervalo completo dos dados |
+| `granularity` | `day` `week` `month` | `day` |
+| `channels` | `email` `mobile` `wpp`, separados por vírgula | todos |
+| `conversionStatuses` | ids de 1 a 6, separados por vírgula | `1` (Válido) |
+
+```bash
+curl 'http://localhost:3000/api/v1/conversion/timeseries?granularity=month&channels=email,mobile'
+```
+
+```json
+{
+  "meta": {
+    "from": "2024-01-01", "to": "2025-12-31", "granularity": "month",
+    "channels": ["email", "mobile"], "conversionStatuses": [1],
+    "queryMs": 2, "source": "conversion_daily"
+  },
+  "totals": { "sent": 9524041, "converted": 28455, "conversionRate": 0.002988 },
+  "series": [
+    { "period": "2024-01-01", "channel": "email", "sent": 202511,
+      "converted": 166, "delivered": 201138, "opened": 6507, "viewed": 0,
+      "conversionRate": 0.00082, "openRate": 0.032351 }
+  ]
+}
+```
+
+`conversionStatuses` redefine o que conta como conversão sem tocar em SQL. O
+padrão `1` dá 0,2988% global; `1,5` (Válido ou Aberto) dá 1,53%.
+
+Outras rotas: `GET /api/v1/conversion/channels` (canais, volume e intervalo,
+útil para popular filtros) e `GET /health` (liveness + readiness do banco).
+
+## Por que rollup, e não índice
+
+A leitura ingênua do enunciado é indexar a tabela de fatos. Medimos antes: mesmo
+com particionamento e índice ajudando, a agregação direta custa 2 segundos na
+janela completa — que é justamente a tela inicial de qualquer dashboard.
+
+A observação que resolve: **a resposta é minúscula**. 24 meses × 3 canais em
+granularidade diária cabem em 1.362 linhas. Varrer 9,5 milhões de linhas para
+produzir mil, a cada request, é trabalho repetido que não depende de quem
+perguntou — então não pertence ao request.
+
+```
+channel_events      9.525.993 linhas   fato bruto, particionado por mês
+      ↓ agregação materializada
+conversion_daily    1.362 linhas       rollup dia × canal
+      ↓ SUM sobre o recorte
+resposta da API     ≤ 1.362 pontos     ms, independente do volume
+```
+
+Trade-off assumido: o rollup introduz latência de dados. Para evolução temporal
+de taxa de conversão isso é irrelevante — ninguém decide campanha com
+granularidade de segundos. Trocamos frescor que não é usado por três ordens de
+grandeza de latência que são.
+
+O raciocínio completo — particionamento, `REFRESH CONCURRENTLY`, escolha de
+stack, geração do `created_at` — está em
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Três achados do dataset que viraram decisão
+
+Coisas que só aparecem lendo o dump, e que quebrariam a rota em silêncio:
+
+**`origin` com caixa inconsistente.** O dump traz `MOBILE` em maiúsculas contra
+`email` e `wpp` em minúsculas. Um `GROUP BY origin` ingênuo racha o canal em duas
+séries. Normalizado na carga.
+
+**Status 3 (Incompleto) não existe nos dados.** O enunciado lista seis status; o
+dump usa cinco.
+
+**wpp tem 1.952 linhas contra 6,6M de email.** Três ordens de grandeza de
+diferença — uma taxa sobre 2 envios num dia não significa nada. Por isso `sent`,
+`converted` e `delivered` viajam em toda resposta: **um gráfico que mostra só a
+taxa mente sobre o wpp.** E divisão por zero devolve `null`, não `0` — um dia sem
+envio não teve taxa zero, ele não tem taxa.
+
+## O campo `created_at`
+
+O enunciado manda criar o campo; o dump não tem nenhuma coluna temporal. A regra
+de geração é decisão de projeto:
+
+Mapeamos a **posição ordinal** (rank) do `id` — não seu valor — através da
+inversa de uma CDF de sazonalidade. O mapa linear pelo valor foi testado e
+descartado: o range de id tem 44% de buracos, e cada buraco virava um dia sem
+dado, produzindo quedas a zero que são artefato do gerador, não do negócio.
+
+Determinístico, sem `random()`: o mesmo dump gera sempre as mesmas datas, em
+qualquer máquina — os números de benchmark acima são verificáveis.
+
+## Stack
+
+Node 24 · NestJS 11 · Fastify · TypeScript strict · Postgres 17 · `pg` sem ORM ·
+Docker Compose · manifests Kubernetes em [`k8s/`](k8s/).
+
+Go seria mais rápido no runtime, mas o gargalo é o banco: a query custa 1 a 9 ms
+e o roundtrip HTTP inteiro, 3 a 32 ms. Trocar o runtime otimizaria a fração que
+já não é o problema.
+
+## Testes
+
+```bash
+npm test          # 20 unit
+npm run test:e2e  # 4 e2e, sem Postgres real
+```
+
+Cobertura de `conversion.service.ts`: 97,5% statements. Os e2e sobem o AppModule
+com `DatabaseService` mockado, então rodam em CI sem banco.
+
+## Estrutura
+
+```
+src/conversion/     rota, service, DTOs com validação
+src/database/       pool pg compartilhado
+db/init/            schema, particionamento (roda no boot do container)
+db/post-load/       indices e rollup (aplicados depois do COPY, de propósito)
+scripts/            transform do dump, carga, benchmark
+k8s/                topologia de produção
+docs/               arquitetura e enunciado original
+```
+
+## Scripts
+
+| comando | o que faz |
+| --- | --- |
+| `npm run db:up` | sobe só o Postgres |
+| `npm run db:load` | pipeline completo de carga |
+| `npm run db:refresh` | `REFRESH MATERIALIZED VIEW CONCURRENTLY` |
+| `npm run bench` | benchmark fato vs rollup |
+| `npm run stack:up` | sobe tudo |

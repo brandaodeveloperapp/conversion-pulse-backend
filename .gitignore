@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+data/*.sql
+data/*.csv
+data/*.gz
+*.log
+.DS_Store
+.claude-flow/
+.swarm/
+.hive-mind/
+memory/
