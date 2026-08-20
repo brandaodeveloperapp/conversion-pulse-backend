@@ -12,6 +12,7 @@ data:
   CACHE_TTL_SECONDS: "60"
   RATE_LIMIT_TTL_SECONDS: "60"
   RATE_LIMIT_MAX: "120"
+  AUDIT_MONGO_URL: mongodb://cpulse-mongo:27017
   ROLLUP_EXCHANGE: cpulse.rollup
   ROLLUP_QUEUE: cpulse.rollup.refresh
   ROLLUP_ROUTING_KEY: rollup.refresh

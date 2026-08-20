@@ -14,6 +14,7 @@ resources:
   # out of band so a kustomize build can never overwrite them with placeholders.
   - postgres-statefulset.yaml
   - redis-statefulset.yaml
+  - mongo-statefulset.yaml
   - rabbitmq-statefulset.yaml
   - prometheus-deployment.yaml
   - grafana-deployment.yaml
