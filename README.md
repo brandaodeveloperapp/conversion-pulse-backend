@@ -145,24 +145,37 @@ já não é o problema.
 ## Testes
 
 ```bash
-npm test          # 20 unit
-npm run test:e2e  # 5 e2e, sem Postgres real
+npm test          # 49 unit
+npm run test:e2e  # 5 e2e, sem infra real
 ```
 
-Cobertura de `conversion.service.ts`: 97,5% statements. Os e2e sobem o AppModule
-com `DatabaseService` mockado, então rodam em CI sem banco.
+Os e2e sobem o `AppModule` de verdade e trocam apenas os três adaptadores de
+saída — Postgres, Redis e RabbitMQ — por fakes em memória. É o retorno concreto
+de portas e adapters: o teste troca o adapter, não a regra. Rodam em CI sem
+nenhum container, em menos de um segundo.
 
 ## Estrutura
 
+Hexagonal (ports & adapters). A regra de dependência aponta sempre para
+dentro: `domain` não importa nada de framework, `application` conhece só as
+portas, e todo detalhe de infraestrutura é substituível sem tocar na regra.
+
 ```
-src/conversion/     rota, service, DTOs com validação
-src/database/       pool pg compartilhado
+src/domain/         entidades, cálculo de taxa e as portas (interfaces)
+src/application/    casos de uso; orquestra portas, sem saber quem as implementa
+src/infrastructure/ adapters: postgres, redis, rabbitmq, métricas, logs
+src/presentation/   HTTP: controllers, DTOs de request/response, interceptors
+src/shared/         configuração tipada
 db/init/            schema, particionamento (roda no boot do container)
 db/post-load/       indices e rollup (aplicados depois do COPY, de propósito)
 scripts/            transform do dump, carga, benchmark
 k8s/                topologia de produção
 docs/               arquitetura e enunciado original
 ```
+
+O que essa fronteira compra, na prática: trocar o rollup por outra fonte, ou o
+Redis por um cache local, é escrever um adapter novo — nenhum arquivo de
+`domain/` ou `application/` muda.
 
 ## Scripts
 

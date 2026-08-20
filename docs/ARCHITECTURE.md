@@ -26,7 +26,67 @@ em granularidade diária cabem em 1.362 linhas. Estamos varrendo 9,5 milhões de
 linhas para produzir mil. O trabalho pesado é sempre o mesmo e não depende de
 quem perguntou — então não pertence ao request.
 
-## 2. Modelo de dados
+## 2. Arquitetura do código
+
+Hexagonal (ports & adapters). A escolha não é enfeite: o desafio tem um núcleo
+de regra pequeno e bem definido — o que conta como conversão, como se calcula a
+taxa, o que fazer quando o denominador é zero — cercado por muita
+infraestrutura (Postgres particionado, rollup, Redis, RabbitMQ, métricas). Sem
+uma fronteira explícita, a regra vaza para dentro do adapter e some.
+
+```
+        HTTP (controllers, DTOs)
+                  |
+            application (casos de uso)
+                  |
+              domain (regra + portas)
+                  ^
+                  |  implementa
+   infrastructure (postgres, redis, rabbitmq, métricas)
+```
+
+A regra de dependência aponta sempre para dentro. `src/domain/` não importa uma
+linha de NestJS, de `pg` ou de `ioredis` — só tipos e funções puras. Cada porta
+é um par `Symbol` (token de injeção) + `interface`:
+
+| porta | implementada por |
+| --- | --- |
+| `ConversionRepository` | `PgConversionRepository` |
+| `SeriesCache` | `RedisSeriesCache` |
+| `RollupRefresher` | `PgRollupRefresher` |
+| `RollupQueue` | `RabbitRollupQueue` |
+
+### O que a fronteira comprou, concretamente
+
+**Testes sem infraestrutura.** Os e2e sobem o `AppModule` real e substituem
+apenas os três adaptadores de saída por fakes em memória. Cinco testes ponta a
+ponta em menos de um segundo, sem Postgres, sem Redis, sem RabbitMQ — e o que
+roda no meio é o código de produção, não um mock do caso de uso.
+
+**O cache saiu do interceptor HTTP e entrou no caso de uso.** Cachear na
+camada HTTP amarra a chave ao formato do querystring; a mesma pergunta escrita
+com os parâmetros em outra ordem virava outra entrada. No caso de uso a chave é
+derivada dos parâmetros já normalizados e ordenados, então `channels=email,wpp`
+e `channels=wpp,email` colidem — como devem.
+
+### Degradação é decisão de arquitetura, não detalhe
+
+Um adapter fora do ar não pode derrubar o núcleo. Redis é cache e rate limit —
+nenhum dos dois é a resposta:
+
+- cache indisponível → conta como `miss`, a query vai ao banco, métrica
+  `cpulse_cache_operations_total{result="error"}` registra;
+- rate limit indisponível → **fail-open**, o request passa. Perder o limitador
+  degrada uma defesa; transformar cada request em 500 seria uma queda
+  auto-infligida;
+- banco indisponível → aí sim `/health` responde 503 `degraded`, porque sem
+  banco não existe resposta.
+
+Essa assimetria foi encontrada por teste, não por revisão: o e2e sem Redis
+devolvia 500 em *todas* as rotas, `/health` inclusive, porque o storage do
+rate limiter propagava o erro do Redis a partir de um guard global.
+
+## 3. Modelo de dados
 
 Três camadas, cada uma com um trabalho:
 
@@ -67,7 +127,7 @@ Se um dia frescor importar, o caminho é `TimescaleDB` com *continuous
 aggregates*, que atualiza o rollup de forma incremental. O modelo aqui já está no
 formato certo para essa migração.
 
-## 3. O campo `created_at`
+## 4. O campo `created_at`
 
 O enunciado manda criar o campo. O dump não tem nenhuma coluna temporal — só
 `id`, `origin` e `response_status_id`. Então a regra de geração é uma decisão de
@@ -101,7 +161,7 @@ preservado de propósito.
 Janela e granularidade são configuráveis por env (`WINDOW_START`,
 `WINDOW_MONTHS`); o padrão é 2024-01-01 + 24 meses.
 
-## 4. Achados do dataset que viraram decisão
+## 5. Achados do dataset que viraram decisão
 
 Três coisas que só aparecem lendo o dump, e cada uma quebraria a rota em
 silêncio:
@@ -132,7 +192,7 @@ Distribuição completa:
 | 6 | Visualizou | 11.158 |
 | 3 | Incompleto | 0 |
 
-## 5. Carga dos dados
+## 6. Carga dos dados
 
 O dump são 298 MB de `INSERT` com 10 linhas cada — cerca de 950 mil statements.
 Executar isso direto leva dezenas de minutos: cada statement paga parse, plan e
@@ -150,7 +210,7 @@ uma ida ao WAL.
 Ordem importa: índices são criados **depois** do `COPY`. Índice existente durante
 a carga força manutenção de árvore a cada linha inserida.
 
-## 6. Escolhas de stack
+## 7. Escolhas de stack
 
 **NestJS.** O enunciado libera Node ou Go. Go seria mais rápido no runtime, mas
 o gargalo desta aplicação é o banco, não a serialização — e ficou provado: a
@@ -172,7 +232,7 @@ válidos só podem virar nomes daquele mapa; qualquer outro é descartado antes 
 tocar em SQL. Injeção não tem por onde entrar, e os valores em si viajam sempre
 como parâmetro.
 
-## 7. Formato da resposta
+## 8. Formato da resposta
 
 Toda resposta carrega numerador e denominador, nunca só a taxa:
 

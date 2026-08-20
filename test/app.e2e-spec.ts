@@ -6,9 +6,14 @@ import {
 } from '@nestjs/platform-fastify';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { ChannelRow } from '../src/conversion/conversion.service';
-import { ConversionResponseDto } from '../src/conversion/dto/conversion-response.dto';
-import { DatabaseService } from '../src/database/database.service';
+import {
+  ChannelVolumeDto,
+  ConversionResponseDto,
+} from '../src/presentation/http/dto/response/conversion-response.dto';
+import { PostgresConnection } from '../src/infrastructure/persistence/postgres/postgres-connection.service';
+import { REDIS_CLIENT } from '../src/infrastructure/cache/redis/cache.constants';
+import { RabbitConnectionService } from '../src/infrastructure/messaging/rabbitmq/rabbit-connection.service';
+import { FakeRabbitConnection, FakeRedis } from './fakes';
 
 type QueryFn = (text: string, params?: unknown[]) => Promise<unknown[]>;
 
@@ -58,13 +63,17 @@ describe('Conversion Pulse API (e2e)', () => {
     queryMock = jest.fn<ReturnType<QueryFn>, Parameters<QueryFn>>(
       mockQueryImplementation,
     );
-    const mockDb = { query: queryMock } as unknown as DatabaseService;
+    const mockDb = { query: queryMock } as unknown as PostgresConnection;
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(DatabaseService)
+      .overrideProvider(PostgresConnection)
       .useValue(mockDb)
+      .overrideProvider(REDIS_CLIENT)
+      .useValue(new FakeRedis())
+      .overrideProvider(RabbitConnectionService)
+      .useValue(new FakeRabbitConnection())
       .compile();
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
@@ -137,7 +146,7 @@ describe('Conversion Pulse API (e2e)', () => {
     const response = await request(app.getHttpServer()).get(
       '/api/v1/conversion/channels',
     );
-    const body = response.body as ChannelRow[];
+    const body = response.body as ChannelVolumeDto[];
 
     expect(response.status).toBe(200);
     expect(Array.isArray(body)).toBe(true);

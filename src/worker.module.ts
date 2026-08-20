@@ -8,8 +8,6 @@ import { MessagingModule } from './infrastructure/messaging/rabbitmq/messaging.m
 import { MetricsModule } from './infrastructure/observability/metrics/metrics.module';
 import { buildPinoLoggerParams } from './infrastructure/observability/logging/pino-logger.config';
 import { ApplicationModule } from './application/application.module';
-import { HttpModule } from './presentation/http/http.module';
-import { ReadinessModule } from './presentation/http/controller/ready/readiness.module';
 
 @Module({
   imports: [
@@ -23,12 +21,13 @@ import { ReadinessModule } from './presentation/http/controller/ready/readiness.
       useFactory: buildPinoLoggerParams,
     }),
     PersistenceModule,
-    CacheModule.forRoot(),
-    MetricsModule.forRoot(),
-    MessagingModule.forRoot(),
+    CacheModule.forRoot({
+      enableHttpInterceptor: false,
+      enableRateLimit: false,
+    }),
+    MetricsModule.forRoot({ httpInterceptor: false }),
     ApplicationModule,
-    HttpModule,
-    ReadinessModule,
+    MessagingModule.forRoot({ publisher: false, cron: false, consumer: true }),
   ],
 })
-export class AppModule {}
+export class WorkerModule {}
