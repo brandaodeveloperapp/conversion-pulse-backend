@@ -127,7 +127,10 @@ services:
       start_period: 20s
 
   api:
-    image: ${API_IMAGE:-ghcr.io/brandaodeveloperapp/conversion-pulse-backend}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: conversion-pulse:local
     container_name: cpulse-api
     restart: unless-stopped
     command: ["node", "dist/main.js"]
@@ -158,7 +161,10 @@ services:
       start_period: 20s
 
   worker:
-    image: ${API_IMAGE:-ghcr.io/brandaodeveloperapp/conversion-pulse-backend}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: conversion-pulse:local
     container_name: cpulse-worker
     restart: unless-stopped
     command: ["node", "dist/worker.js"]

@@ -139,7 +139,7 @@ qualquer máquina — os números de benchmark acima são verificáveis.
 ## Stack
 
 Node 24 · NestJS 11 · Fastify · TypeScript strict · Postgres 17 · `pg` sem ORM ·
-Docker Compose · manifests Kubernetes em [`k8s/`](k8s/).
+Docker Compose · manifests Kubernetes em [`infra/k8s/`](infra/k8s/).
 
 Go seria mais rápido no runtime, mas o gargalo é o banco: a query custa 1 a 9 ms
 e o roundtrip HTTP inteiro, 3 a 32 ms. Trocar o runtime otimizaria a fração que
@@ -172,13 +172,37 @@ src/shared/         configuração tipada
 db/init/            schema, particionamento (roda no boot do container)
 db/post-load/       indices e rollup (aplicados depois do COPY, de propósito)
 scripts/            transform do dump, carga, benchmark
-k8s/                topologia de produção
+infra/k8s/          base autocontida + overlay de produção (kustomize)
 docs/               arquitetura e enunciado original
 ```
 
 O que essa fronteira compra, na prática: trocar o rollup por outra fonte, ou o
 Redis por um cache local, é escrever um adapter novo — nenhum arquivo de
 `domain/` ou `application/` muda.
+
+## Deploy
+
+Sem registry. A imagem é construída localmente para `linux/amd64`, enviada por
+SSH e importada direto no containerd do k3s:
+
+```bash
+./deploy.sh
+```
+
+`docker save | gzip` → `scp` → `k3s ctr images import` → `kubectl apply -k` →
+smoke test no NodePort. Se o smoke test falhar, o script faz `rollout undo`
+sozinho e sai com erro — nunca deixa uma versão quebrada no ar.
+
+A tag é sempre o SHA curto do commit, nunca `latest`: uma tag mutável torna
+impossível saber o que está rodando. O deploy recusa árvore suja.
+
+`infra/k8s/base/` é autocontida — inclui Ingress, ServiceMonitor e a própria
+stack de observabilidade, então aplica em qualquer cluster completo
+(kind, minikube, EKS). O overlay `production/` remove exatamente o que a
+máquina real não tem ou já tem: sem ingress-controller, o tráfego entra por
+nginx:443 → NodePort 30983; e Prometheus, Grafana e Loki já rodam num namespace
+`observability` compartilhado, então subir os nossos duplicaria custo e
+dividiria os painéis em dois.
 
 ## Scripts
 

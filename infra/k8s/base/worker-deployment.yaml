@@ -27,7 +27,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: worker
-          image: cpulse-api:latest
+          image: conversion-pulse/api:latest
           imagePullPolicy: IfNotPresent
           command:
             - node
@@ -54,14 +54,23 @@ spec:
             capabilities:
               drop:
                 - ALL
+          ports:
+            - name: metrics
+              containerPort: 9101
           livenessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - pgrep -f dist/worker.js
-            initialDelaySeconds: 15
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 20
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           resources:

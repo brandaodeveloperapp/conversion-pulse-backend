@@ -1,0 +1,167 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: conversion-pulse
+
+resources:
+  - ../../base
+  - api-service-nodeport.yaml
+
+patches:
+  # The single-node k3s has no ingress-controller: every site on this host is
+  # reached through nginx on 443 proxying to a NodePort. An Ingress here would
+  # apply cleanly and route nothing.
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: cpulse-api
+    target:
+      kind: Ingress
+      name: cpulse-api
+
+  # Prometheus, Grafana and Loki already run in the shared `observability`
+  # namespace on this cluster. Deploying our own would double the memory cost
+  # and split the dashboards in two.
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cpulse-prometheus
+    target:
+      kind: Deployment
+      name: cpulse-prometheus
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cpulse-grafana
+    target:
+      kind: Deployment
+      name: cpulse-grafana
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cpulse-loki
+    target:
+      kind: Deployment
+      name: cpulse-loki
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: cpulse-prometheus
+    target:
+      kind: Service
+      name: cpulse-prometheus
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: cpulse-grafana
+    target:
+      kind: Service
+      name: cpulse-grafana
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: cpulse-loki
+    target:
+      kind: Service
+      name: cpulse-loki
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cpulse-prometheus-config
+    target:
+      kind: ConfigMap
+      name: cpulse-prometheus-config
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cpulse-grafana-datasources
+    target:
+      kind: ConfigMap
+      name: cpulse-grafana-datasources
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cpulse-grafana-dashboard-provider
+    target:
+      kind: ConfigMap
+      name: cpulse-grafana-dashboard-provider
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: cpulse-prometheus
+    target:
+      kind: ServiceAccount
+      name: cpulse-prometheus
+  - patch: |-
+      $patch: delete
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: cpulse-prometheus
+    target:
+      kind: ClusterRole
+      name: cpulse-prometheus
+  - patch: |-
+      $patch: delete
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: cpulse-prometheus
+    target:
+      kind: ClusterRoleBinding
+      name: cpulse-prometheus
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: cpulse-prometheus-data
+    target:
+      kind: PersistentVolumeClaim
+      name: cpulse-prometheus-data
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: cpulse-grafana-data
+    target:
+      kind: PersistentVolumeClaim
+      name: cpulse-grafana-data
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: cpulse-loki-data
+    target:
+      kind: PersistentVolumeClaim
+      name: cpulse-loki-data
+
+images:
+  - name: conversion-pulse/api
+    # PINNED TAG: rewritten to the commit SHA on every deploy by deploy.sh.
+    # Never "latest" — a mutable tag makes a rollout impossible to reason about.
+    newTag: "latest"

@@ -17,5 +17,6 @@ data:
   ROLLUP_ROUTING_KEY: rollup.refresh
   ROLLUP_CRON: "0 */15 * * * *"
   LOG_LEVEL: info
+  WORKER_METRICS_PORT: "9101"
   METRICS_ENABLED: "true"
   OTEL_SERVICE_NAME: conversion-pulse-api

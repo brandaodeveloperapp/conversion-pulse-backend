@@ -127,5 +127,6 @@ api    -> node dist/main.js   (HTTP 3000)
 worker -> node dist/worker.js (HTTP 9101, só /metrics)
 ```
 
-Registry: `ghcr.io/brandaodeveloperapp/conversion-pulse-backend`.
-Tags: `latest`, `sha-<commit>`.
+Sem registry. A imagem é construída no próprio servidor a partir do código que
+o `git` levou até lá, tagueada como `conversion-pulse:local`, e a anterior é
+removida no mesmo deploy. Nada de artefato de build sai da máquina.
