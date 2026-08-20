@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import configuration from './shared/config/configuration';
 import { PersistenceModule } from './infrastructure/persistence/persistence.module';
 import { CacheModule } from './infrastructure/cache/redis/cache.module';
+import { AuditModule } from './infrastructure/audit/mongo/audit.module';
 import { MessagingModule } from './infrastructure/messaging/rabbitmq/messaging.module';
 import { MetricsModule } from './infrastructure/observability/metrics/metrics.module';
 import { buildPinoLoggerParams } from './infrastructure/observability/logging/pino-logger.config';
@@ -24,6 +25,7 @@ import { ReadinessModule } from './presentation/http/controller/ready/readiness.
     }),
     PersistenceModule,
     CacheModule.forRoot(),
+    AuditModule.forRoot(),
     MetricsModule.forRoot(),
     MessagingModule.forRoot(),
     ApplicationModule.forRoot(),
