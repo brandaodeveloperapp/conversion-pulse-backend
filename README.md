@@ -146,7 +146,7 @@ já não é o problema.
 
 ```bash
 npm test          # 20 unit
-npm run test:e2e  # 4 e2e, sem Postgres real
+npm run test:e2e  # 5 e2e, sem Postgres real
 ```
 
 Cobertura de `conversion.service.ts`: 97,5% statements. Os e2e sobem o AppModule
