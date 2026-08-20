@@ -1,0 +1,142 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: conversion-pulse/api
+  REMOTE_DIR: /opt/conversion-pulse
+  NAMESPACE: conversion-pulse
+  NODE_PORT: '30983'
+  PUBLIC_URL: https://conversion-pulse.brandaodeveloper.com.br
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the commit that passed CI
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve short SHA
+        id: vars
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # No registry: the image is built here and imported straight into the
+      # k3s containerd on the server, the same way every other project on that
+      # host works. Build artefacts never leave the two machines that need them.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.IMAGE }}:${{ steps.vars.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save and compress image
+        run: docker save "${IMAGE}:${{ steps.vars.outputs.sha }}" | gzip > /tmp/conversion-pulse-api.tar.gz
+
+      - name: Authorise SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          {
+            echo "Host deploy-target"
+            echo "  HostName $SSH_HOST"
+            echo "  User $SSH_USER"
+            echo "  IdentityFile ~/.ssh/id_ed25519"
+            echo "  IdentitiesOnly yes"
+            echo "  ServerAliveInterval 30"
+            echo "  ServerAliveCountMax 20"
+          } >> ~/.ssh/config
+
+      - name: Ship image, manifests and database scripts
+        run: |
+          ssh deploy-target "mkdir -p ${REMOTE_DIR}/images ${REMOTE_DIR}/infra/k8s ${REMOTE_DIR}/db"
+          scp -q /tmp/conversion-pulse-api.tar.gz "deploy-target:${REMOTE_DIR}/images/conversion-pulse-api.tar.gz"
+          rsync -az --delete infra/k8s/ "deploy-target:${REMOTE_DIR}/infra/k8s/"
+          rsync -az --delete db/ "deploy-target:${REMOTE_DIR}/db/"
+
+      - name: Import image and roll out
+        env:
+          GIT_SHA: ${{ steps.vars.outputs.sha }}
+        run: |
+          ssh deploy-target "GIT_SHA='${GIT_SHA}' bash -s" <<'EOF'
+          set -euo pipefail
+          previous="$(kubectl -n conversion-pulse get deploy cpulse-api -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)"
+
+          gunzip -c /opt/conversion-pulse/images/conversion-pulse-api.tar.gz | k3s ctr images import -
+          rm -f /opt/conversion-pulse/images/conversion-pulse-api.tar.gz
+
+          cd /opt/conversion-pulse
+          sed -i -E "s|newTag: \"[^\"]+\"|newTag: \"${GIT_SHA}\"|" infra/k8s/overlays/production/kustomization.yaml
+          kubectl apply -k infra/k8s/overlays/production/
+          kubectl -n conversion-pulse rollout status deployment/cpulse-api --timeout=300s
+          kubectl -n conversion-pulse rollout status deployment/cpulse-worker --timeout=300s
+
+          if [ -n "${previous}" ] && [ "${previous}" != "conversion-pulse/api:${GIT_SHA}" ]; then
+            k3s ctr images rm "docker.io/${previous}" >/dev/null 2>&1 || true
+          fi
+          EOF
+
+      # The NodePort is firewalled off from the internet, so it can only be
+      # reached from the host itself. Checking it first separates "k3s is
+      # broken" from "nginx is broken".
+      - name: Smoke test the NodePort
+        id: smoke_internal
+        run: |
+          for i in $(seq 1 12); do
+            status=$(ssh deploy-target "curl -s -o /dev/null -w '%{http_code}' http://localhost:${NODE_PORT}/health" || echo 000)
+            echo "attempt $i: HTTP $status"
+            [ "$status" = "200" ] && exit 0
+            sleep 5
+          done
+          exit 1
+
+      - name: Smoke test the public URL
+        run: |
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/health" || echo 000)
+            echo "attempt $i: HTTP $status"
+            [ "$status" = "200" ] && exit 0
+            sleep 5
+          done
+          exit 1
+
+      - name: Roll back on failure
+        if: failure() && steps.smoke_internal.outcome != 'skipped'
+        run: |
+          ssh deploy-target bash -s <<'EOF'
+          set -e
+          kubectl -n conversion-pulse rollout undo deployment/cpulse-api
+          kubectl -n conversion-pulse rollout undo deployment/cpulse-worker
+          kubectl -n conversion-pulse rollout status deployment/cpulse-api --timeout=180s
+          EOF
+
+      - name: Remove the deploy key from the runner
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519

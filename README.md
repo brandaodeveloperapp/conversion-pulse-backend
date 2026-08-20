@@ -182,16 +182,26 @@ Redis por um cache local, é escrever um adapter novo — nenhum arquivo de
 
 ## Deploy
 
-Sem registry. A imagem é construída localmente para `linux/amd64`, enviada por
-SSH e importada direto no containerd do k3s:
+Sem registry. A imagem é construída, salva como tarball, enviada por SSH e
+importada direto no containerd do k3s — o artefato nunca sai das duas máquinas
+que precisam dele.
+
+Merge em `main` → CI verde → **CD sobe sozinho**. O mesmo caminho roda à mão
+quando preciso:
 
 ```bash
 ./deploy.sh
 ```
 
 `docker save | gzip` → `scp` → `k3s ctr images import` → `kubectl apply -k` →
-smoke test no NodePort. Se o smoke test falhar, o script faz `rollout undo`
-sozinho e sai com erro — nunca deixa uma versão quebrada no ar.
+smoke test. Testa primeiro o NodePort pelo próprio host e só depois a URL
+pública: se falhar no primeiro, o problema é o k3s; se passar no primeiro e
+falhar no segundo, é o nginx. Qualquer falha dispara `rollout undo` — nunca
+fica uma versão quebrada no ar.
+
+O runner autentica com uma **chave ed25519 dedicada a este projeto**, apagada
+do runner ao fim de todo job. Revogar é tirar uma linha do `authorized_keys`,
+sem tocar nas chaves dos outros projetos do mesmo host.
 
 A tag é sempre o SHA curto do commit, nunca `latest`: uma tag mutável torna
 impossível saber o que está rodando. O deploy recusa árvore suja.
