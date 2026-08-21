@@ -13,7 +13,7 @@
 #
 set -euo pipefail
 
-VPS="${VPS:-rainhadoatacado-prod}"
+VPS="${VPS:-conversion-pulse-prod}"  # SSH alias do host k3s (configure em ~/.ssh/config)
 IMAGE="conversion-pulse/api"
 SHA="$(git rev-parse --short HEAD)"
 TAR="/tmp/conversion-pulse-api.tar.gz"

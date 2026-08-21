@@ -1,14 +1,34 @@
-# Conversion Pulse
+# Conversion Pulse — API
 
 API de evolução temporal da taxa de conversão por canal sobre **9.525.993 envios**.
 
+[![CI](https://github.com/brandaodeveloperapp/conversion-pulse-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/brandaodeveloperapp/conversion-pulse-backend/actions/workflows/ci.yml)
+[![CD](https://github.com/brandaodeveloperapp/conversion-pulse-backend/actions/workflows/cd.yml/badge.svg)](https://github.com/brandaodeveloperapp/conversion-pulse-backend/actions/workflows/cd.yml)
+![Node](https://img.shields.io/badge/node-24-339933?logo=node.js&logoColor=white)
+![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)
+![Postgres](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![tests](https://img.shields.io/badge/tests-89%20unit%20%2B%205%20e2e-16a765)
+
 Desafio Tech Lead — Ilumeo Data Science. Enunciado original em
 [`docs/CHALLENGE.md`](docs/CHALLENGE.md).
+Dashboard que consome esta API: [`conversion-pulse-frontend`](https://github.com/brandaodeveloperapp/conversion-pulse-frontend).
 
-**No ar:** https://conversion-pulse.brandaodeveloper.com.br
-· [Swagger](https://conversion-pulse.brandaodeveloper.com.br/docs)
+**No ar:** [API](https://conversion-pulse.brandaodeveloper.com.br)
+· [Swagger](https://docs-conversion-pulse.brandaodeveloper.com.br)
 · [série mensal](https://conversion-pulse.brandaodeveloper.com.br/api/v1/conversion/timeseries?granularity=month)
 · [health](https://conversion-pulse.brandaodeveloper.com.br/health)
+· [dashboard](https://conversion-pulse-app.brandaodeveloper.com.br)
+
+## Índice
+
+1. [O resultado em uma tabela](#o-resultado-em-uma-tabela) — a otimização, medida
+2. [Subir em um comando](#subir-em-um-comando) — quickstart local
+3. [A rota](#a-rota) — contrato da API
+4. [Por que rollup, e não índice](#por-que-rollup-e-não-índice) — a decisão central
+5. [Três achados do dataset](#três-achados-do-dataset-que-viraram-decisão)
+6. [O campo `created_at`](#o-campo-created_at)
+7. [Stack](#stack) · [Testes](#testes) · [Estrutura](#estrutura)
+8. [Deploy](#deploy) · [Produção](#produção) · [Scripts](#scripts)
 
 ## O resultado em uma tabela
 
@@ -223,6 +243,27 @@ máquina real não tem ou já tem: sem ingress-controller, o tráfego entra por
 nginx:443 → NodePort 30983; e Prometheus, Grafana e Loki já rodam num namespace
 `observability` compartilhado, então subir os nossos duplicaria custo e
 dividiria os painéis em dois.
+
+## Produção
+
+Tudo no ar num cluster k3s, atrás de nginx com TLS. As superfícies públicas não
+pedem login; as ferramentas de infra são protegidas por credencial (fornecidas
+sob solicitação — não versionadas).
+
+| superfície | URL | acesso |
+| --- | --- | --- |
+| Dashboard | [conversion-pulse-app…](https://conversion-pulse-app.brandaodeveloper.com.br) | público |
+| API | [conversion-pulse…](https://conversion-pulse.brandaodeveloper.com.br) | público |
+| Swagger | [docs-conversion-pulse…](https://docs-conversion-pulse.brandaodeveloper.com.br) | público |
+| Grafana | grafana-conversion-pulse… | login |
+| Prometheus | prometheus-conversion-pulse… | basic-auth |
+| RabbitMQ | rabbitmq-conversion-pulse… | login |
+
+**Observabilidade.** A API expõe métricas Prometheus custom por rota
+(`cpulse_http_request_duration_seconds`, `cpulse_db_query_duration_seconds`,
+cache hit/miss, duração do refresh do rollup). Prometheus scrapa API e worker;
+Loki + Promtail coletam os logs; o dashboard "Conversion Pulse" no Grafana reúne
+tudo. `/metrics` é bloqueado no nginx (404 público) — só o Prometheus interno lê.
 
 ## Scripts
 
