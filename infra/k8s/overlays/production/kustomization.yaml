@@ -162,6 +162,6 @@ patches:
 
 images:
   - name: conversion-pulse/api
-    # PINNED TAG: rewritten to the commit SHA on every deploy by deploy.sh.
+    # PINNED TAG: rewritten to the commit SHA on every deploy by the CD workflow.
     # Never "latest" — a mutable tag makes a rollout impossible to reason about.
     newTag: "latest"

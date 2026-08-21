@@ -216,15 +216,14 @@ Sem registry. A imagem é construída, salva como tarball, enviada por SSH e
 importada direto no containerd do k3s — o artefato nunca sai das duas máquinas
 que precisam dele.
 
-Merge em `main` → CI verde → **CD sobe sozinho**. O mesmo caminho roda à mão
-quando preciso:
+**Merge em `main` → CI verde → CD sobe sozinho.** Não há deploy manual — o
+[workflow de CD](.github/workflows/cd.yml) é o único caminho para produção.
 
-```bash
-./deploy.sh
+```
+docker save | gzip → scp → k3s ctr images import → kubectl apply -k → smoke test
 ```
 
-`docker save | gzip` → `scp` → `k3s ctr images import` → `kubectl apply -k` →
-smoke test. Testa primeiro o NodePort pelo próprio host e só depois a URL
+O smoke test verifica primeiro o NodePort pelo próprio host e só depois a URL
 pública: se falhar no primeiro, o problema é o k3s; se passar no primeiro e
 falhar no segundo, é o nginx. Qualquer falha dispara `rollout undo` — nunca
 fica uma versão quebrada no ar.
