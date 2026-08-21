@@ -16,6 +16,20 @@ import { IsNotBeforeConstraint } from './is-not-before.validator';
 import { CHANNELS, Channel } from '../../../../domain/model/channel';
 import { GRANULARITIES } from '../../../../domain/model/granularity';
 import type { Granularity } from '../../../../domain/model/granularity';
+import type {
+  SortDir,
+  SortField,
+} from '../../../../application/use-case/get-conversion-timeseries.use-case';
+
+const SORT_FIELDS: SortField[] = [
+  'period',
+  'channel',
+  'sent',
+  'converted',
+  'delivered',
+  'rate',
+];
+const SORT_DIRS: SortDir[] = ['asc', 'desc'];
 
 const toList = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string'
@@ -108,4 +122,22 @@ export class ConversionQueryDto {
   @Min(1)
   @Max(1000)
   pageSize?: number;
+
+  @ApiPropertyOptional({
+    enum: SORT_FIELDS,
+    description:
+      'Campo de ordenação da série. Ordena o conjunto inteiro antes de paginar.',
+  })
+  @IsOptional()
+  @IsIn(SORT_FIELDS)
+  sort?: SortField;
+
+  @ApiPropertyOptional({
+    enum: SORT_DIRS,
+    default: 'asc',
+    description: 'Direção da ordenação.',
+  })
+  @IsOptional()
+  @IsIn(SORT_DIRS)
+  dir?: SortDir;
 }

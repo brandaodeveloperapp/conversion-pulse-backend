@@ -203,3 +203,102 @@ describe('GetConversionTimeseriesUseCase pagination', () => {
     expect(cached.pagination).toBeUndefined();
   });
 });
+
+function variedCounts() {
+  const base = {
+    channel: 'email',
+    converted: 10,
+    delivered: 90,
+    opened: 20,
+    viewed: 5,
+  };
+  return [
+    { ...base, period: '2025-01-01', sent: 100 },
+    { ...base, period: '2025-01-02', sent: 300 },
+    { ...base, period: '2025-01-03', sent: 200 },
+  ];
+}
+
+describe('GetConversionTimeseriesUseCase sorting', () => {
+  it('sorts the full series by a numeric field descending', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: variedCounts(),
+      queryMs: 2,
+    });
+    const view = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+      sort: 'sent',
+      dir: 'desc',
+    });
+
+    expect(view.series.map((p) => p.sent)).toEqual([300, 200, 100]);
+  });
+
+  it('sorts before paginating, so page 1 holds the global top rows', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: variedCounts(),
+      queryMs: 2,
+    });
+    const view = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+      sort: 'sent',
+      dir: 'desc',
+      page: 1,
+      pageSize: 1,
+    });
+
+    expect(view.series).toHaveLength(1);
+    expect(view.series[0].sent).toBe(300);
+    expect(view.pagination?.totalItems).toBe(3);
+  });
+
+  it('places null rates last regardless of direction', async () => {
+    const repository = buildRepository();
+    // sent 0 -> conversionRate null via the domain calculator
+    repository.findTimeseries.mockResolvedValue({
+      counts: [
+        {
+          period: '2025-01-01',
+          channel: 'email',
+          sent: 0,
+          converted: 0,
+          delivered: 0,
+          opened: 0,
+          viewed: 0,
+        },
+        {
+          period: '2025-01-02',
+          channel: 'email',
+          sent: 100,
+          converted: 10,
+          delivered: 90,
+          opened: 20,
+          viewed: 5,
+        },
+      ],
+      queryMs: 2,
+    });
+    const asc = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+      sort: 'rate',
+      dir: 'asc',
+    });
+
+    expect(asc.series[asc.series.length - 1].conversionRate).toBeNull();
+  });
+
+  it('ignores sorting when sort is absent (default order preserved)', async () => {
+    const repository = buildRepository();
+    repository.findTimeseries.mockResolvedValue({
+      counts: variedCounts(),
+      queryMs: 2,
+    });
+    const view = await buildUseCase(repository, buildCache()).execute({
+      granularity: 'day',
+    });
+
+    expect(view.series.map((p) => p.sent)).toEqual([100, 300, 200]);
+  });
+});

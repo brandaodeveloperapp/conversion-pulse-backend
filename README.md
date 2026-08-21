@@ -53,6 +53,12 @@ GET /api/v1/conversion/timeseries
 | `conversionStatuses` | ids de 1 a 6, separados por vírgula | `1` (Válido) |
 | `pageSize` | 1 a 1000; omitido devolve a série inteira | — |
 | `page` | página 1-based da série (só com `pageSize`) | `1` |
+| `sort` | `period` `channel` `sent` `converted` `delivered` `rate` | ordem natural |
+| `dir` | `asc` `desc` | `asc` |
+
+`sort` ordena a **série inteira** antes de paginar — ordenar por `sent desc` com
+`pageSize` devolve o top global, não o topo da página. Nulls (taxa sem
+denominador) vão sempre para o fim, em qualquer direção.
 
 ```bash
 curl 'https://conversion-pulse.brandaodeveloper.com.br/api/v1/conversion/timeseries?granularity=month&channels=email,mobile'
@@ -150,7 +156,7 @@ já não é o problema.
 ## Testes
 
 ```bash
-npm test          # 55 unit
+npm test          # 89 unit
 npm run test:e2e  # 5 e2e, sem infra real
 ```
 

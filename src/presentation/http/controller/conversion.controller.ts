@@ -37,6 +37,8 @@ export class ConversionController {
       conversionStatuses: query.conversionStatuses,
       page: query.page,
       pageSize: query.pageSize,
+      sort: query.sort,
+      dir: query.dir,
     });
 
     void reply.header('X-Cache', view.cached ? 'HIT' : 'MISS');
